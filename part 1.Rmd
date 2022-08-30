@@ -1,0 +1,780 @@
+---
+title: "part 1"
+author: "Xinwei Kang"
+date: "12/07/2022"
+output: html_document
+---
+
+```{r}
+library(spatstat)
+library(here)
+library(sp)
+library(rgeos)
+library(maptools)
+library(GISTools)
+library(tmap)
+library(sf)
+library(geojson)
+library(geojsonio)
+library(tmaptools)
+library(raster)
+```
+
+
+## Read data
+```{r}
+# London MSOA data
+London_areas <- st_read(here::here("data", "statistical-gis-boundaries-london", "ESRI", "MSOA_2011_London_gen_MHW.shp"))
+```
+
+```{r}
+library(stringr)
+LondonMap <- London_areas %>%
+  st_transform(., 27700)
+qtm(LondonMap)
+```
+
+```{r}
+parcel_lockers <- st_read(here::here("data",
+                                     "parcel locker.geojson"))
+```
+
+## Data cleaning
+```{r}
+#parcel_lockers <- remove.duplicates(parcel_lockers)
+```
+
+```{r}
+#remove duplicates
+library(tidyverse)
+
+library(sf)
+parcel_lockers <- distinct(parcel_lockers)
+```
+
+
+## Point Pattern Analysis
+
+```{r}
+#set a window as the MSOA boundary
+window <- as.owin(LondonMap)
+plot(window)
+```
+
+
+```{r}
+#create a sp object
+parcel_lockers<- parcel_lockers %>%
+  as(., 'Spatial')
+#create a ppp object
+parcel_lockers.ppp <- ppp(x=parcel_lockers@coords[,1],
+                          y=parcel_lockers@coords[,2],
+                          window=window)
+```
+
+
+```{r}
+# Check for duplicates using the anyDuplicated function
+anyDuplicated(parcel_lockers.ppp)
+```
+
+```{r}
+# Count the number of duplicated points and sum this
+sum(multiplicity(parcel_lockers.ppp) > 1)
+```
+
+```{r}
+# Add an offset to our points using the rjitter function
+parcel_lockers_jitter.ppp <- rjitter(parcel_lockers.ppp, retry = TRUE, nsim = 1, drop = TRUE)
+
+# Count the number of duplicated points of the new jitter dataset
+anyDuplicated(parcel_lockers_jitter.ppp)
+```
+
+```{r}
+parcel_lockers.ppp <-remove.duplicates(parcel_lockers.ppp)
+```
+
+
+```{r}
+# Plot the resulting ppp object
+plot(parcel_lockers_jitter.ppp)%>%
+  plot(.,pch=16,cex=0.5, 
+       main="Blue Plaques Harrow")
+```
+
+
+
+```{r}
+parcel_lockers@coords[,1]
+```
+
+# Plot our ppp object
+```{r}
+parcel_lockers.ppp %>%
+  plot(.,pch=16,cex=0.5, 
+       main="Blue Plaques Harrow")
+```
+
+## Density-based methods
+### Kernel Density Estimation
+Density-based techniques are used to characterise the pattern of a point dataset utilising its general distribution.
+A bit like our spatial autocorrelation techniques, we can calculate densities at both the global and local scale.
+However, as you’ll see, for PPA, global density really does not tell us much more about the distribution of our data - in terms of areas of high and low densities, for example.
+This is where local density techniques such as Quadrat Analysis and Kernel Density Estimation can help us visualise these differences in density in our data’s distribution.
+
+基于密度的技术用于利用其一般分布来表征点数据集的模式。
+有点像我们的空间自相关技术，我们可以计算全局和局部尺度的密度。
+但是，正如您将看到的那样，对于 PPA，全球密度实际上并不能告诉我们更多关于我们数据分布的信息——例如，就高密度和低密度区域而言。
+在这里，局部密度技术（例如Quadrat Analysis和Kernel Density Estimation）可以帮助我们可视化数据分布中的这些密度差异。
+
+
+### Global Density
+```{r}
+# Calculate the global density of our bike points Try to understand this code
+# yourself - I'll ask in the seminar how this equation works!
+global_density <- length(parcel_lockers$cid)/sum(st_area(London_areas))
+
+# Return global_density to our console
+global_density
+```
+
+## Local Density:Kernel Density Estimation
+
+```{r}
+parcel_lockers.ppp %>%
+  density(., sigma=100) %>%
+  plot()
+```
+
+```{r}
+parcel_lockers.ppp %>%
+  density(., sigma=500) %>%
+  plot()
+```
+
+
+```{r}
+parcel_lockers.ppp %>%
+  density(., sigma=1000) %>%
+  plot()
+```
+```{r}
+parcel_lockers.ppp %>%
+  density(., sigma=500, edge = T) %>%
+#kde_400g_raster <- density.ppp(parcel_lockers, sigma = 400, edge = T) %>%
+    raster()
+
+# Plot the resulting raster
+plot(parcel_lockers.ppp)
+```
+
+
+```{r}
+library(raster)
+library(fpc)
+```
+
+
+```{r}
+#first check the coordinate reference system of the Harrow spatial polygon:
+st_geometry(LondonMap)
+```
+
+```{r}
+K <- parcel_lockers.ppp %>%
+  Kest(., correction="border", rmax = 1000) %>%
+  plot()
+```
+
+
+```{r}
+
+#求和
+df_cluster <- read_csv("data/cluster.csv")
+                       #locale = locale(encoding = "latin1"), #the encoding of the data (how it is stored)
+                       #na = "n/a") #清除里面的na 重要！！！！！！！
+#重要！！！！清除n/a
+```
+
+
+
+```{r}
+library(data.table)
+```
+
+
+
+```{r}
+df_cluster <- data.table(df_cluster)
+cluster_y = dcast(df_cluster, MSOA11CD ~ new_cluster, fun = list(length, sum), value.var = c("count"))
+cluster_y
+```
+
+
+```{r}
+fwrite(cluster_y, "data/cluster_y.csv")
+#write.csv(x = data.table,file = "data/cluster_y.csv")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+#convert the tibble into a tidy tibble
+df_cluster_long <- df_cluster %>% 
+  pivot_longer(
+    cols = 1:1,
+    names_to = "cluster_type",
+    values_to = "count"
+  )
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+#first check the coordinate reference system of the Harrow spatial polygon:
+st_geometry(LondonMap)
+```
+
+
+```{r}
+#first extract the points from the spatial points data frame
+parcel_lockersPoints <- parcel_lockers %>%
+  coordinates(.)%>%
+  as.data.frame()
+
+#now run the dbscan analysis
+db <- parcel_lockersPoints %>%
+  fpc::dbscan(.,eps = 600, MinPts = 3)
+
+#now plot the results
+plot(db, parcel_lockersPoints, main = "DBSCAN Output", frame = F)
+plot(LondonMap$geometry, add=T)
+```
+
+
+```{r}
+dbscan::kNNdistplot(db, k =  5)
+abline(h = 0.15, lty = 2)
+```
+
+
+
+```{r}
+parcel_lockersPoints[db$cluster==30,]
+parcel_lockersPoints[db$cluster==35,]
+parcel_lockersPoints[db$cluster==36,]
+```
+
+
+
+```{r}
+parcel_lockersPoints[db$cluster==1,]
+parcel_lockersPoints[db$cluster==2,]
+parcel_lockersPoints[db$cluster==3,]
+parcel_lockersPoints[db$cluster==4,]
+parcel_lockersPoints[db$cluster==5,]
+parcel_lockersPoints[db$cluster==6,]
+```
+
+```{r}
+parcel_lockersPoints[db$cluster==7,]
+parcel_lockersPoints[db$cluster==8,]
+parcel_lockersPoints[db$cluster==9,]
+parcel_lockersPoints[db$cluster==10,]
+parcel_lockersPoints[db$cluster==11,]
+parcel_lockersPoints[db$cluster==12,]
+```
+
+```{r}
+parcel_lockersPoints[db$cluster==13,]
+parcel_lockersPoints[db$cluster==14,]
+parcel_lockersPoints[db$cluster==15,]
+parcel_lockersPoints[db$cluster==16,]
+parcel_lockersPoints[db$cluster==17,]
+parcel_lockersPoints[db$cluster==18,]
+```
+
+```{r}
+parcel_lockersPoints[db$cluster==19,]
+parcel_lockersPoints[db$cluster==20,]
+parcel_lockersPoints[db$cluster==21,]
+parcel_lockersPoints[db$cluster==22,]
+parcel_lockersPoints[db$cluster==23,]
+parcel_lockersPoints[db$cluster==24,]
+```
+```{r}
+parcel_lockersPoints[db$cluster==25,]
+parcel_lockersPoints[db$cluster==26,]
+parcel_lockersPoints[db$cluster==27,]
+parcel_lockersPoints[db$cluster==28,]
+parcel_lockersPoints[db$cluster==29,]
+parcel_lockersPoints[db$cluster==30,]
+```
+
+
+```{r}
+parcel_lockersPoints[db$cluster==31,]
+parcel_lockersPoints[db$cluster==32,]
+parcel_lockersPoints[db$cluster==33,]
+parcel_lockersPoints[db$cluster==34,]
+parcel_lockersPoints[db$cluster==35,]
+parcel_lockersPoints[db$cluster==36,]
+```
+
+
+
+```{r}
+#first extract the points from the spatial points data frame
+parcel_lockersPoints <- parcel_lockers %>%
+  coordinates(.)%>%
+  as.data.frame()
+
+#now run the dbscan analysis
+db <- parcel_lockersPoints %>%
+  fpc::dbscan(.,eps = 550, MinPts = 4)
+
+#now plot the results
+plot(db, parcel_lockersPoints, main = "DBSCAN Output", frame = F)
+plot(LondonMap$geometry, add=T)
+```
+
+
+
+```{r}
+# used to find suitable eps value based on the knee in plot
+# k is no of nearest neighbours used, use min points
+library(dbscan)
+
+parcel_lockersPoints%>%
+  dbscan::kNNdistplot(.,k=4)
+```
+
+```{r}
+library(ggplot2)
+```
+
+
+```{r}
+db
+```
+
+
+
+```{r}
+db$cluster
+```
+
+
+```{r}
+parcel_lockersPoints<- parcel_lockersPoints %>%
+  mutate(dbcluster=db$cluster)
+```
+
+
+```{r}
+chulls <- parcel_lockersPoints %>%
+  group_by(dbcluster) %>%
+  dplyr::mutate(hull = 1:n(),
+  hull = factor(hull, chull(coords.x1, coords.x2)))%>%
+  arrange(hull)
+```
+
+```{r}
+chulls <- chulls %>%
+  filter(dbcluster >=1)
+```
+
+
+
+```{r}
+dbplot <- ggplot(data=parcel_lockersPoints, 
+                 aes(coords.x1,coords.x2, colour=dbcluster, fill=dbcluster)) 
+#add the points in
+dbplot <- dbplot + geom_point()
+#now the convex hulls
+dbplot <- dbplot + geom_polygon(data = chulls, 
+                                aes(coords.x1,coords.x2, group=dbcluster), 
+                                alpha = 0.5) 
+#now plot, setting the coordinates to scale correctly and as a black and white plot 
+#(just for the hell of it)...
+dbplot + theme_bw() + coord_equal()
+```
+
+
+
+
+```{r}
+###add a basemap
+##First get the bbox in lat long for Harrow
+LondonMap <- LondonMap %>%
+  st_transform(., 4326)%>%
+  st_bbox()
+```
+
+
+
+
+```{r}
+library(OpenStreetMap)
+
+basemap <- OpenStreetMap::openmap(c(51.5549876,-0.4040502),c(51.6405356,-0.2671315),
+                         zoom=NULL,
+                         "stamen-toner")
+
+  # convert the basemap to British National Grid
+basemap_bng <- openproj(basemap, projection="+init=epsg:27700")
+```
+
+
+```{r}
+library(tidyverse)
+library(sf)
+library(rgdal)
+```
+
+
+```{r}
+#get the bus stop data
+#https://data.london.gov.uk/dataset/tfl-bus-stop-locations-and-routes
+bus <- read.csv("data/bus-stops-10-06-15.csv",
+                stringsAsFactors = FALSE) %>%
+filter(!is.na("Location_Easting"))  %>%
+filter(!is.na("Location_Northing")) %>%
+  #convert to simple features
+  st_as_sf(coords = c("Location_Easting", "Location_Northing"), crs = st_crs("+init=epsg:27700"))
+  #transform projection to match the boundary data
+  st_transform(crs = st_crs(london))
+  #remove bus stops outside of the limits of the london shapefile
+  .[unlist(st_intersects(london, .)),]
+
+```
+
+
+```{r}
+#get the shapefile data of london from GADM
+#downloads into a temp file
+gadm_url <- "https://biogeo.ucdavis.edu/data/gadm3.6/Rsf/gadm36_GBR_2_sf.rds"
+temp_dir <- tempdir()
+download.file(gadm_url, destfile = file.path(temp_dir, "london_shapefile.rds"), 
+              mode = "wb", quiet = TRUE)
+london <- sf::st_as_sf(readRDS(file.path(temp_dir, "london_shapefile.rds"))) %>%
+  filter(grepl("London", NAME_2))
+
+#get the bus stop data
+#https://data.london.gov.uk/dataset/tfl-bus-stop-locations-and-routes
+bus <- read.csv("data/bus-stops-10-06-15.csv",
+                stringsAsFactors = FALSE) %>%
+  filter(!is.na(Location_Easting)) %>%
+  #convert to simple features
+  st_as_sf(coords = c("Location_Easting", "Location_Northing"), crs = st_crs("+init=epsg:27700")) %>%
+  #transform projection to match the boundary data
+  st_transform(crs = st_crs(london)) %>%
+  #remove bus stops outside of the limits of the london shapefile
+  .[unlist(st_intersects(london, .)),]
+
+```
+
+
+```{r}
+bus
+```
+
+
+```{r}
+#write.csv(df, file = "C:/Users/Administrator/Desktop/导出文件.csv")
+write.csv(bus,file="data/bus.csv")
+```
+
+
+
+```{r}
+#library a bunch of packages we may (or may not) use - install them first if not installed already. 
+library(tidyverse)
+library(tmap)
+library(geojsonio)
+library(plotly)
+library(rgdal)
+library(broom)
+library(mapview)
+library(crosstalk)
+library(sf)
+library(sp)
+library(spdep)
+library(car)
+library(fs)
+library(janitor)
+```
+
+
+```{r}
+#read in some attribute data
+LonWardProfiles <- read_csv("data/model_gwr.csv", 
+                               col_names = TRUE, 
+                               locale = locale(encoding = 'Latin1'))
+```
+
+
+```{r}
+#run a final OLS model
+model_final <- lm(cluster_1_degree ~ rest_degree +
+                  income_degree + 
+                  market_degree + 
+                  under_degree + 
+                  bus_degree +
+                  workplace_degree, 
+                  data = LonWardProfiles)
+
+tidy(model_final)
+
+```
+
+```{r}
+LonWardProfiles <- LonWardProfiles %>%
+  mutate(model_final_res = residuals(model_final))
+
+par(mfrow=c(2,2))
+plot(model_final)
+```
+
+1) Residuals vs Fitted - checks linear relationship assumption of linear regression. A linear relationship will demonstrate a horizontal red line here. Deviations from a horizontal line suggest nonlinearity and that a different approach may be necessary.
+
+2)Normal Q-Q - checks whether or not the residuals (the difference between the observed and predicted values) from the model are normally distributed. The best fit models points fall along the dashed line on the plot. Deviation from this line suggests that a different analytical approach may be required.
+
+3)Scale-Location - checks the homoscedasticity of the model. A horizontal red line with points equally spread out indicates a well-fit model. A non-horizontal line or points that cluster together suggests that your data are not homoscedastic.
+
+4)Residuals vs Leverage - helps to identify outlier or extreme values that may disproportionately affect the model’s results. Their inclusion or exclusion from the analysis may affect the results of the analysis. Note that the top three most extreme values are identified with numbers next to the points in all four plots.
+
+
+
+## Assumption 5 - Independence of Errors
+
+### Moran’s I
+```{r}
+#calculate the centroids of all Wards in London
+coordsW <- LonWardProfiles%>%
+  st_centroid()%>%
+  st_geometry()
+
+plot(coordsW)
+```
+
+
+```{r}
+library(readr)
+
+LondonWardProfiles <- read_csv("data/model_ols.csv")
+
+#model.to_csv("model.csv")
+```
+
+
+
+```{r}
+library(dplyr)
+
+LonWardProfiles <- LondonMap%>%
+  left_join(.,
+            LondonWardProfiles, 
+            by = c("MSOA11CD" = "MSOA11CD"))
+```
+
+
+
+```{r}
+#calculate the centroids of all Wards in London
+coordsW <- LonWardProfiles%>%
+  st_centroid()%>%
+  st_geometry()
+
+plot(coordsW)
+```
+
+
+```{r}
+#library a bunch of packages we may (or may not) use - install them first if not installed already. 
+library(tidyverse)
+library(tmap)
+library(geojsonio)
+library(plotly)
+library(rgdal)
+library(broom)
+library(mapview)
+library(crosstalk)
+library(sf)
+library(sp)
+library(spdep)
+library(car)
+library(fs)
+library(janitor)
+```
+
+
+
+
+
+```{r}
+#or nearest neighbours
+knn_wards <-coordsW %>%
+  knearneigh(., k=4)
+
+
+LWard_knn <- knn_wards %>%
+  knn2nb()
+```
+
+
+```{r}
+plot(LWard_knn, st_geometry(coordsW), col="blue")
+```
+
+```{r}
+Lward.knn_4_weight <- LWard_knn %>%
+  nb2listw(., style="W")
+```
+
+
+```{r}
+Nearest_neighbour <- LonWardProfiles %>%
+  st_drop_geometry()%>%
+  dplyr::select(model2resids)%>%
+  pull()%>%
+  moran.test(., Lward.knn_4_weight)%>%
+  tidy()
+```
+
+
+
+
+```{r}
+library(spgwr)
+
+coordsW2 <- st_coordinates(coordsW)
+
+LonWardProfiles2 <- cbind(LonWardProfiles,coordsW2)
+
+GWRbandwidth <- gwr.sel(cluster_1_degree ~ rest_degree +
+                  income_degree + 
+                  market_degree + 
+                  under_degree + 
+                  bus_degree +
+                  workplace_degree, 
+                  data = LonWardProfiles2, 
+                        coords=cbind(LonWardProfiles2$X, LonWardProfiles2$Y),
+                  adapt=T)
+```
+
+
+```{r}
+GWRbandwidth
+```
+
+
+```{r}
+#run the gwr model
+gwr.model = gwr(cluster_1_degree ~ rest_degree +
+                  income_degree + 
+                  market_degree + 
+                  under_degree + 
+                  bus_degree +
+                  workplace_degree, 
+                  data = LonWardProfiles2, 
+                coords=cbind(LonWardProfiles2$X, LonWardProfiles2$Y), 
+                adapt=GWRbandwidth,
+                #matrix output
+                hatmatrix=TRUE,
+                #standard error
+                se.fit=TRUE)
+
+#print the results of the model
+gwr.model
+```
+
+
+
+
+
+
+cluster_1_degree ~ rest_degree +
+                  income_degree + 
+                  market_degree + 
+                  under_degree + 
+                  bus_degree +
+                  workplace_degree, 
+                  data = LonWardProfiles
+
+
+
